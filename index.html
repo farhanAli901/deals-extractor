@@ -892,7 +892,7 @@
             
             // Reset and show progress bar immediately
             console.log('[Scrape] Initializing progress bar...');
-            updateProgressBar(detectedPlatform, 0, dealsCount || 20);
+            updateProgressBar(detectedPlatform, 0, dealsCount || 20, 0);
 
             try {
                 const requestBody = { url: url };
@@ -915,7 +915,7 @@
                     showStatus(statusMessageId, 'Scraping started! Please wait...', 'info');
                     
                     // Ensure progress bar is visible
-                    updateProgressBar(detectedPlatform, 0, dealsCount || 20);
+                    updateProgressBar(detectedPlatform, 0, dealsCount || 20, 0);
                     
                     // Start checking status immediately
                     startStatusChecking(detectedPlatform, statusMessageId, scrapeBtn);
@@ -933,14 +933,14 @@
             }
         }
 
-        function updateProgressBar(platform, dealsScraped, dealsRequested) {
+        function updateProgressBar(platform, productsProcessed, totalProducts, dealsFound = 0) {
             const prefix = platform === 'amazon' ? 'amazon' : 'noon';
             const progressContainer = document.getElementById(`${prefix}ProgressContainer`);
             const progressBar = document.getElementById(`${prefix}ProgressBar`);
             const progressCount = document.getElementById(`${prefix}ProgressCount`);
             const progressPercentage = document.getElementById(`${prefix}ProgressPercentage`);
             
-            console.log(`[Progress] Platform: ${platform}, Scraped: ${dealsScraped}, Requested: ${dealsRequested}`);
+            console.log(`[Progress] Platform: ${platform}, Processed: ${productsProcessed}/${totalProducts}, Valid deals: ${dealsFound}`);
             
             if (!progressContainer || !progressBar || !progressCount || !progressPercentage) {
                 console.error('[Progress] Missing progress elements');
@@ -951,15 +951,22 @@
             progressContainer.classList.add('active');
             progressContainer.style.display = 'block';
             
-            // Calculate percentage
-            const percentage = dealsRequested > 0 ? Math.round((dealsScraped / dealsRequested) * 100) : 0;
+            // Calculate percentage based on products processed
+            const percentage = totalProducts > 0 ? Math.round((productsProcessed / totalProducts) * 100) : 0;
             
             // Update progress bar
             progressBar.style.width = `${percentage}%`;
-            progressCount.textContent = `${dealsScraped} / ${dealsRequested} deals`;
+            
+            // Show products processed and deals found
+            if (dealsFound > 0) {
+                progressCount.textContent = `Processing ${productsProcessed}/${totalProducts} - Found ${dealsFound} deals`;
+            } else {
+                progressCount.textContent = `Processing ${productsProcessed}/${totalProducts} products...`;
+            }
+            
             progressPercentage.textContent = `${percentage}%`;
             
-            console.log(`[Progress] Updated to ${percentage}%`);
+            console.log(`[Progress] Updated to ${percentage}% (${productsProcessed}/${totalProducts})`);
             
             // Add complete class if done
             if (percentage >= 100) {
@@ -1006,9 +1013,14 @@
                     if (status.is_scraping) {
                         showStatus(statusMessageId, status.message, 'loading');
                         
-                        // Update progress bar with deals scraped
-                        if (status.deals_requested > 0) {
-                            updateProgressBar(platform, status.deals_scraped, status.deals_requested);
+                        // Update progress bar with products processed (not deals found)
+                        if (status.total > 0) {
+                            // Show progress as products processed, not deals found
+                            const productsProcessed = status.progress || 0;
+                            const totalProducts = status.total || status.deals_requested || 0;
+                            const dealsFound = status.deals_scraped || 0;
+                            
+                            updateProgressBar(platform, productsProcessed, totalProducts, dealsFound);
                         }
                     } else {
                         // Scraping completed
@@ -1022,10 +1034,10 @@
 
                         showStatus(statusMessageId, status.message, 'success');
                         
-                        // Update final progress bar
-                        if (status.deals_requested > 0) {
-                            updateProgressBar(platform, status.deals_scraped, status.deals_requested);
-                        }
+                        // Update final progress bar to 100%
+                        const totalProducts = status.total || status.deals_requested || 0;
+                        const dealsFound = status.deals_scraped || 0;
+                        updateProgressBar(platform, totalProducts, totalProducts, dealsFound);
                         
                         // Re-enable button
                         scrapeBtn.disabled = false;

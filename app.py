@@ -99,12 +99,13 @@ def scrape_amazon_deals_background(url, max_deals=None):
         # Scrape each deal
         for i, link in enumerate(deal_links, 1):
             amazon_scraping_status['progress'] = i
-            amazon_scraping_status['message'] = f'Scraping product {i} of {len(deal_links)}...'
+            amazon_scraping_status['message'] = f'Scraping product {i} of {len(deal_links)}... Found {len(all_deals)} valid deals'
             
             deal_data = scraper.extract_deal_details(link)
             if deal_data and is_valid_amazon_deal(deal_data):
                 all_deals.append(deal_data)
                 amazon_scraping_status['deals_scraped'] = len(all_deals)
+                print(f"[PROGRESS] Product {i}/{len(deal_links)} - Valid deals found: {len(all_deals)}")
         
         # Filter only valid deals before saving
         valid_deals = [deal for deal in all_deals if is_valid_amazon_deal(deal)]
@@ -189,7 +190,7 @@ def scrape_noon_deals_background(url, max_deals=None):
         # Scrape details for each product
         for i, product_card in enumerate(product_cards, 1):
             noon_scraping_status['progress'] = i
-            noon_scraping_status['message'] = f'Scraping product {i} of {len(product_cards)}...'
+            noon_scraping_status['message'] = f'Scraping product {i} of {len(product_cards)}... Found {len(all_deals)} valid deals'
             
             # Add small delay to avoid overwhelming the server
             if i > 1:
@@ -229,6 +230,7 @@ def scrape_noon_deals_background(url, max_deals=None):
                 if is_valid_noon_deal(deal_data):
                     all_deals.append(deal_data)
                     noon_scraping_status['deals_scraped'] = len(all_deals)
+                    print(f"[PROGRESS] Product {i}/{len(product_cards)} - Valid deals found: {len(all_deals)}")
                 else:
                     print(f"[DEBUG Noon] Product skipped - validation failed")
             except Exception as e:
