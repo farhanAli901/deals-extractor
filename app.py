@@ -367,12 +367,17 @@ def get_deals():
         }), 500
 
 if __name__ == '__main__':
+    # Get port from environment variable or default to 5000
+    port = int(os.environ.get('PORT', 5000))
+    debug_mode = os.environ.get('FLASK_ENV', 'development') == 'development'
+    
     print("=" * 60)
     print("🚀 Amazon Deals Scraper Server Starting...")
     print("=" * 60)
-    print("📍 Server running at: http://localhost:5000")
-    print("🌐 Open your browser and visit: http://localhost:5000")
+    print(f"📍 Server running on port: {port}")
+    print(f"🌐 Environment: {'Development' if debug_mode else 'Production'}")
     print("💡 Note: Noon scraper temporarily disabled")
     print("=" * 60)
-    app.run(debug=True, host='0.0.0.0', port=5000, threaded=True)
+    
+    app.run(debug=debug_mode, host='0.0.0.0', port=port, threaded=True)
 

@@ -4,16 +4,16 @@ __pycache__/
 *$py.class
 *.so
 .Python
-env/
 venv/
+env/
 ENV/
-.venv
-pip-log.txt
-pip-delete-this-directory.txt
+*.egg-info/
+dist/
+build/
 
-# Flask
-instance/
-.webassets-cache
+# Environment
+.env
+.env.local
 
 # IDE
 .vscode/
@@ -26,10 +26,10 @@ instance/
 .DS_Store
 Thumbs.db
 
-# Project specific
-amazon_deals.json
-v1-amazon_deals.json
-
 # Logs
 *.log
 
+# Project specific
+*.json
+!requirements.txt
+terminals/
