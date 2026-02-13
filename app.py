@@ -11,6 +11,10 @@ from noon_scraper import NoonProductScraper
 app = Flask(__name__, static_folder='.')
 CORS(app)
 
+# In-memory storage for deals (replaces JSON files for cloud deployment)
+amazon_deals_storage = []
+noon_deals_storage = []
+
 # Global variables to track scraping status for each platform
 amazon_scraping_status = {
     'is_scraping': False,
@@ -56,7 +60,7 @@ def is_valid_noon_deal(deal):
 
 def scrape_amazon_deals_background(url, max_deals=None):
     """Background function to scrape Amazon deals"""
-    global amazon_scraping_status
+    global amazon_scraping_status, amazon_deals_storage
     
     try:
         amazon_scraping_status = {
@@ -105,8 +109,17 @@ def scrape_amazon_deals_background(url, max_deals=None):
         # Filter only valid deals before saving
         valid_deals = [deal for deal in all_deals if is_valid_amazon_deal(deal)]
         
-        # Save to JSON
-        scraper.save_to_json(valid_deals, 'amazon_deals.json')
+        # Store in memory instead of JSON file (for cloud deployment)
+        amazon_deals_storage.clear()
+        amazon_deals_storage.extend(valid_deals)
+        
+        # Also save to JSON for local backup (optional, may not persist on cloud)
+        try:
+            scraper.save_to_json(valid_deals, 'amazon_deals.json')
+        except Exception as e:
+            print(f"[WARNING] Could not save to JSON file: {e}")
+        
+        print(f"[INFO] Stored {len(valid_deals)} deals in memory")
         
         amazon_scraping_status = {
             'is_scraping': False,
@@ -129,7 +142,7 @@ def scrape_amazon_deals_background(url, max_deals=None):
 
 def scrape_noon_deals_background(url, max_deals=None):
     """Background function to scrape Noon deals"""
-    global noon_scraping_status
+    global noon_scraping_status, noon_deals_storage
     
     try:
         print(f"\n{'='*60}")
@@ -227,9 +240,18 @@ def scrape_noon_deals_background(url, max_deals=None):
         # Filter only valid deals before saving
         valid_deals = [deal for deal in all_deals if is_valid_noon_deal(deal)]
         
-        # Save to JSON
-        with open('noon_deals.json', 'w', encoding='utf-8') as f:
-            json.dump(valid_deals, f, indent=2, ensure_ascii=False)
+        # Store in memory instead of JSON file (for cloud deployment)
+        noon_deals_storage.clear()
+        noon_deals_storage.extend(valid_deals)
+        
+        # Also save to JSON for local backup (optional, may not persist on cloud)
+        try:
+            with open('noon_deals.json', 'w', encoding='utf-8') as f:
+                json.dump(valid_deals, f, indent=2, ensure_ascii=False)
+        except Exception as e:
+            print(f"[WARNING] Could not save to JSON file: {e}")
+        
+        print(f"[INFO] Stored {len(valid_deals)} deals in memory")
         
         noon_scraping_status = {
             'is_scraping': False,
@@ -330,34 +352,33 @@ def get_status():
 
 @app.route('/api/deals', methods=['GET'])
 def get_deals():
-    """Get current deals from JSON file for a platform"""
+    """Get current deals from memory storage"""
     platform = request.args.get('platform', 'amazon')
     
     try:
-        filename = 'noon_deals.json' if platform == 'noon' else 'amazon_deals.json'
-        
-        if os.path.exists(filename):
-            with open(filename, 'r', encoding='utf-8') as f:
-                deals = json.load(f)
-                # Filter to only include valid deals
-                if platform == 'noon':
-                    valid_deals = [deal for deal in deals if is_valid_noon_deal(deal)]
-                else:
-                    valid_deals = [deal for deal in deals if is_valid_amazon_deal(deal)]
-                return jsonify({
-                    'success': True,
-                    'deals': valid_deals,
-                    'count': len(valid_deals),
-                    'platform': platform
-                })
+        # Get deals from memory storage
+        if platform == 'noon':
+            deals = noon_deals_storage.copy()
         else:
-            return jsonify({
-                'success': True,
-                'deals': [],
-                'count': 0,
-                'platform': platform
-            })
+            deals = amazon_deals_storage.copy()
+        
+        print(f"[API] Returning {len(deals)} {platform} deals from memory")
+        
+        # Filter to only include valid deals
+        if platform == 'noon':
+            valid_deals = [deal for deal in deals if is_valid_noon_deal(deal)]
+        else:
+            valid_deals = [deal for deal in deals if is_valid_amazon_deal(deal)]
+        
+        return jsonify({
+            'success': True,
+            'deals': valid_deals,
+            'count': len(valid_deals),
+            'platform': platform
+        })
+        
     except Exception as e:
+        print(f"[ERROR] Error getting deals: {e}")
         return jsonify({
             'success': False,
             'message': str(e),
@@ -365,6 +386,30 @@ def get_deals():
             'count': 0,
             'platform': platform
         }), 500
+
+def load_existing_deals_to_memory():
+    """Load existing JSON files into memory on startup (for local development)"""
+    global amazon_deals_storage, noon_deals_storage
+    
+    # Try to load Amazon deals
+    try:
+        if os.path.exists('amazon_deals.json'):
+            with open('amazon_deals.json', 'r', encoding='utf-8') as f:
+                deals = json.load(f)
+                amazon_deals_storage.extend(deals)
+                print(f"[STARTUP] Loaded {len(deals)} Amazon deals from file into memory")
+    except Exception as e:
+        print(f"[STARTUP] Could not load Amazon deals: {e}")
+    
+    # Try to load Noon deals
+    try:
+        if os.path.exists('noon_deals.json'):
+            with open('noon_deals.json', 'r', encoding='utf-8') as f:
+                deals = json.load(f)
+                noon_deals_storage.extend(deals)
+                print(f"[STARTUP] Loaded {len(deals)} Noon deals from file into memory")
+    except Exception as e:
+        print(f"[STARTUP] Could not load Noon deals: {e}")
 
 if __name__ == '__main__':
     # Get port from environment variable or default to 5000
@@ -377,7 +422,11 @@ if __name__ == '__main__':
     print(f"📍 Server running on port: {port}")
     print(f"🌐 Environment: {'Development' if debug_mode else 'Production'}")
     print("💡 Note: Noon scraper temporarily disabled")
+    print("💾 Using in-memory storage for deals")
     print("=" * 60)
+    
+    # Load existing deals from files (if any) into memory
+    load_existing_deals_to_memory()
     
     app.run(debug=debug_mode, host='0.0.0.0', port=port, threaded=True)
 
